@@ -1,217 +1,71 @@
-import pickle
-import os
-import pathlib
-
-
-class Ticket:
-    name = ' '
-    email = ' '
-    event = ' '
-    reference = 200000
-
-    def bookticket(self):
-        self.name = input('enter your name please:')
-        self.email = input('enter your email please:')
-        file1 = pathlib.Path('events.data')
-        if file1.exists():
-            infile = open('events.data','rb')
-            eventdetails =pickle.load(infile)
-
-            self.reference = int(input('enter reference code (1-150):'))
-            while True:
-                if self.reference<=1:
-                    print('Error! Please enter valid reference code')
-                    self.reference =  int(input('enter reference code (1-150):'))
-                else:
-                    break
-        for event in eventdetails:
-            print('Available event code: '+event.eventcode + 'Event name: '+event.eventname)
-        infile.close()
-        self.event = input('enter event code:')
-
-    def check(self):
-        file1 = pathlib.Path('tickets.data')
-        if file1.exists():
-            infile = open('tickets.data','rb')
-            ticketdetails = pickle.load(infile)
-            for ticket in ticketdetails:
-                if ticket.email ==self.email and ticket.event ==self.event:
-                    return True
-            infile.close()
-    def totalticketcount(self):
-        file1 = pathlib.Path('events.data')
-        if file1.exists():
-            infile = open('events.data','rb')
-            eventdetails = pickle.load(infile)
-            for event in eventdetails:
-                if event.eventcode ==self.event:
-                    return int(event.totalavailableseat)
-            infile.close()
-        else:
-            return 0
-    def bookedseatscount(self):
-        file1 = pathlib.Path('events.data')
-        counter = 0
-        if file1.exists():
-            infile = open('tickets.data','rb')
-            ticketdetails = pickle.load(infile)
-            for ticket in ticketdetails:
-                if ticket.event ==self.event:
-                    counter = counter + 1
-            return int(counter)
-        return 0
-
+import mysql.connector
 
 class Event:
-    eventname = ''
-    eventcode = ''
-    totalavailableseat = 20
-    def createevent(self):
-        self.eventname = input('enter name of the event:')
-        self.eventcode = input('enter event code:')
-        self.totalavailableseat = input('enter number of available seats:')
-        print('-------Event created succesefully!!!')
+    def __init__(self, ID, event_name, seats, location):
+        self.ID = ID
+        self.event_name = event_name
+        self.seats = seats
+        self.location = location
 
+class EventDatabase:
+    def __init__(self):
+        self.conn = mysql.connector.connect(
+            host="127.0.0.1",
+            user="root",
+            password="namiq2003123.",
+            database="event",
+            port=3307
+        )
+        self.cursor = self.conn.cursor()
 
+    def search_event_by_id(self, ID):
+        query = "SELECT * FROM events WHERE ID = %s"
+        values = (ID,)
+        self.cursor.execute(query, values)
+        result = self.cursor.fetchone()
+        if result:
+            event = Event(result[0], result[1], result[2], result[3])
+            return event
+        else:
+            return None
 
-def bookeventticket():
-    ticket = Ticket()
-    ticket.bookticket()
-    if ticket.check():
-        print('You have already booked a seat')
-    
-    elif ticket.bookedseatscount()>=ticket.totalticketcount():
-        print('All ticket were sold out')
-    else:
-        print('ticket booked')
-        saveticketdetails(ticket)
-        
+    def add_event(self, event):
+        query = "INSERT INTO events (ID, event_name, seats, location) VALUES (%s, %s, %s, %s)"
+        values = (event.ID, event.event_name, event.seats, event.location)
+        self.cursor.execute(query, values)
+        self.conn.commit()
 
-def saveticketdetails(ticket):
-    file1 = pathlib.Path('tickets.data')
-    if file1.exists():
-        infile = open('tickets.data','rb')
-        oldlist = pickle.load(infile)
-        oldlist.append(ticket)
-        infile.close()
-        os.remove('tickets.data')
-    else:
-        oldlist = [ticket]
-    outfile = open('tempTicket.data','wb')
-    pickle.dump(oldlist,outfile)
-    outfile.close()
-    os.rename('tempTicket.data','tickets.data')
+    def delete_event(self, ID):
+        query = "DELETE FROM events WHERE ID = %s"
+        values = (ID,)
+        self.cursor.execute(query, values)
+        self.conn.commit()
 
-def getticketdetails():
-    file1 = pathlib.Path('tickets.data')
-    if file1.exists():
-        infile = open('tickets.data','rb')
-        ticketdetails = pickle.load(infile)
-        print('----------Ticket Details--------')
-        print('T-Ref     C-Name   C-Email   E-Code')
-        for ticket in ticketdetails:
-            print(ticket.reference,'\t',ticket.name,'\t',ticket.email,'\t',ticket.event)
-        infile.close()
-        print('-------------')
-        input('press enter to main menu')
-    else:
-        print('no ticket record is found')
+class UserInterface:
+    def __init__(self):
+        self.event_manager = EventDatabase()
 
-def createevent():
-    event = Event()
-    event.createevent()
-    saveEventdetails(event)
+    def search_event(self):
+        ID = input("Enter the ID of the event: ")
+        event = self.event_manager.search_event_by_id(ID)
+        if event:
+            print("ID:", event.ID)
+            print("Event Name:", event.event_name)
+            print("Seats:", event.seats)
+            print("Location:", event.location)
+        else:
+            print("Event not found.")
 
-def saveEventdetails(event):
-    file1 = pathlib.Path('events.data')
-    if file1.exists():
-        infile = open('events.data','rb')
-        oldlist = pickle.load(infile)
-        oldlist.append(event)
-        infile.close()
-        os.remove('events.data')
-    else:
-        oldlist = [event]
-    outfile = open('tempevents.data','wb')
-    pickle.dump(oldlist, outfile)
-    outfile.close()
-    os.rename('tempevents.data', 'events.data')
+    def add_event(self):
+        ID = input("Enter the ID of the event: ")
+        event_name = input("Enter the event name: ")
+        seats = input("Enter the number of seats: ")
+        location = input("Enter the location: ")
+        event = Event(ID, event_name, seats, location)
+        self.event_manager.add_event(event)
+        print("Event added successfully.")
 
-def getEventDetails():
-    file1 = pathlib.Path('events.data')
-    if file1.exists():
-        infile = open('events.data','rb')
-        eventdetails = pickle.load(infile)
-        print('---------Event Details-------')
-        print('E-Name  E-Code   E-Total Seats')
-        for event in eventdetails:
-            print(event.eventname,'\t',event.eventcode,'\t',event.totalavailableseat)
-        infile.close()
-        print('-----------------------------')
-        input('press enter to main menu')
-    else:
-        print('no events record is found')
-
-def geteventSummary():
-    filetickets = pathlib.Path('tickets.data')
-    if filetickets.exists():
-        infiletickets = open('tickets.data','rb')
-        ticketdetails = pickle.load(infiletickets)
-    
-    fileEvents = pathlib.Path('events.data')
-    if fileEvents.exists():
-        infileEvents = open('events.data','rb')
-        eventdetails = pickle.load(infileEvents)
-
-        print('---------REPORTS---------')
-        for event in eventdetails:
-            print('\n\n Event name: '+ event.eventname + '|Total seats: '+ event.totalavailableseat)
-            for ticket in ticketdetails:
-                if event.eventcode ==ticket.event:
-                    print(ticket.reference,'\t',ticket.name,'\t',ticket.email)
-
-        infileEvents.close()
-        infiletickets.close()
-
-        print('--------------------')
-        input('press enter to main menu')
-    else:
-        print('no events records found')
-
-
-ch = ''
-num = 0
-while True:
-    print('\t\t\t\t*************')
-    print('\t\t\t\tEVENT MANAGEMENT SYSTEM')
-    print('\t\t\t\t*************')
-    print('\tMAIN MENU')
-    print('\t1. BOOK TICKET')
-    print('\t2.VIEW TICKET')
-    print('\t3. CREATE EVENT')
-    print('\t4. VIEW EVENTS')
-    print('\tSelect your option please(1-5)')
-    ch = input()
-
-
-    if ch == '1':
-        bookeventticket()
-    elif ch =='2':
-        getticketdetails()
-    elif ch =='3':
-        createevent()
-    elif ch=='4':
-        getEventDetails()
-    elif ch =='5':
-        geteventSummary()
-
-
-
-
-
-
-
-
-
-
-
+    def delete_event(self):
+        ID = input("Enter the ID of the event to delete: ")
+        self.event_manager.delete_event(ID)
+        print("Event deleted successfully.")
